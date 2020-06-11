@@ -41,7 +41,7 @@ def accessJumpBox(username, password):
 
     print('\n--- Attempting connection to ' + 'IS6 Server... ')
     ssh_newkey = 'Are you sure you want to continue connecting'
-    session = wexpect.spawn('ssh ' + username + '@is6.hsnet.ufl.edu')
+    session = wexpect.spawn('ssh ' + username + '@your server IP')
 
     idx = session.expect([ssh_newkey, 'word', wexpect.EOF])
 
@@ -193,7 +193,7 @@ if __name__ == '__main__':
     print('|    Version 1.0.0                                            |')
     print('|    Compatible with C35xx, C37xx, C38xx, C65XX               |')
     print('|    Nexus 5K, 7K, 9K                                         |')
-    print('|    Scripted by Ethan Park, May. 2020                        |')
+    print('|    Scripted by Ethan Park, June. 2020                        |')
     print('+-------------------------------------------------------------+')
     print()
     username = input("Enter your admin ID ==> ")
