@@ -1,3 +1,3 @@
 # CDP-Neighbor
 Gathering cdp neighbor information  
-This script to gather only peer device
+This script to feed interface description configuration  
