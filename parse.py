@@ -41,13 +41,28 @@ class Parse:
                         interfaceList.append(' '.join(split[0:1]))
                     else:
                         interfaceList.append(' '.join(split[1:2]))
-            
+        
         return interfaceList
 
-    def getDeviceID(self, interfaceList):
+    def getBaseDescription(self, interfaceList):
+        
+        parsedInterfaceList = list()
 
         for elem in interfaceList:
-            newID = list(elem.values())[0].split(":")[-1]
-            elem[list(elem.keys())[0]] = newID
+            newID = list(elem.values())[0].split(":")[-1].strip()
 
-        return interfaceList
+            # Clean up DeviceName.shands.ufl.edu pattern
+            newID = newID.split('.')[0]
+
+            # Clean up DeviceName(SerialNumber) pattern
+            newID = newID.split('(')[0]
+
+            # Skip Cisco APs data
+            obj = re.compile(r'^(AP)|^(AC)|^(AT)|^\d|^S|^a|^(el)|^(uf)|^b|^t')
+
+            if obj.search(newID) == None:
+                elem[list(elem.keys())[0]] = newID
+                parsedInterfaceList.append(elem)
+
+        print("--- Device ID Extraction success")   
+        return parsedInterfaceList

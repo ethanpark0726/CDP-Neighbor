@@ -4,6 +4,8 @@ import wexpect
 import getpass
 import openpyxl
 import parse
+import json
+import os
 
 def createExcelFile():
     # Excel File Creation
@@ -41,7 +43,7 @@ def accessJumpBox(username, password):
 
     print('\n--- Attempting connection to ' + 'IS6 Server... ')
     ssh_newkey = 'Are you sure you want to continue connecting'
-    session = wexpect.spawn('ssh ' + username + '@your server IP')
+    session = wexpect.spawn('ssh ' + username + '@is6.hsnet.ufl.edu')
 
     idx = session.expect([ssh_newkey, 'word', wexpect.EOF])
 
@@ -100,6 +102,7 @@ def accessSwitches(session, switch, username, password):
             print('Something''s wrong!')
             print('--- Terminated Program!!')
             exit()
+
     idx = session.expect(['>', '#', wexpect.EOF])
     print('--- Success Login to: ', switch[2])
  
@@ -116,7 +119,7 @@ def accessSwitches(session, switch, username, password):
 def getDeviceList():
     deviceList = []
 
-    file = open('0514.txt', 'r')
+    file = open('0624.txt', 'r')
 
     for line in file:
         temp = line.split('\t')
@@ -137,7 +140,7 @@ def commandExecute(session, os):
         command += 'sh cdp nei | b Device'
     elif os == 'NXOS':
         command += 'sh cdp nei | b Device-ID'
-        
+
     session.sendline(command)
     session.expect(['#', wexpect.EOF])
 
@@ -184,16 +187,71 @@ def commandExecuteCDPNeighbor(session, interfaceList, os):
 
     return cdpNeighborDump
 
+def commandExecutePortChannel(session, listData, baseDesc):
+    
+    totalDescription = list()
+
+    session.sendline('term length 0')
+    session.expect(['#', wexpect.EOF])
+
+    print(baseDesc)
+    for elem in baseDesc:
+        
+        command = ''
+        key = list(elem.keys())[0]
+        value = list(elem.values())[0]
+
+        if listData[1] == 'IOS':
+            command = command + 'sh etherchannel summary | i ' + key.split(' ')[-1]
+        elif listData[1] == 'NXOS':
+            command = command + 'sh int ' + key + ' | i Belongs'
+
+        session.sendline(command)
+        session.expect(['#', wexpect.EOF])
+
+        portChannel = session.before.splitlines()[1]
+        
+
+        if not listData[0].startswith(portChannel.strip()[0:1]):
+            
+            portChannelNumber = str()
+
+            if listData[1] == 'IOS':
+
+                # Example display
+                # 1      Po1(SU)          -        Te1/1/4(P)  Te2/1/4(P)
+                temp = portChannel.split('(')[0][::-1]
+                
+                for char in temp:
+                    if char != 'P':
+                        portChannelNumber += char
+                    else:
+                        portChannelNumber += 'P'
+                        portChannelNumber = portChannelNumber[::-1]
+                        break
+                
+            elif listData[1] == 'NXOS':
+                print(portChannel)
+                portChannelNumber = portChannel.split('to')[-1].strip()
+                print(portChannelNumber)
+            if ('mgmt' not in key) or ('ise' not in value):
+                elem[key] = value + ' (' + portChannelNumber + ')'
+
+        totalDescription.append(elem)
+    
+    print('--- Description assembled Successfully!')
+    return totalDescription
+
 if __name__ == '__main__':
 
-    cellNumber = 13022
+    cellNumber = 5
     print()
     print('+-------------------------------------------------------------+')
     print('|    Cisco L2 switches CDP Neighbor Info Gathernig tool...    |')
     print('|    Version 1.0.0                                            |')
     print('|    Compatible with C35xx, C37xx, C38xx, C65XX               |')
     print('|    Nexus 5K, 7K, 9K                                         |')
-    print('|    Scripted by Ethan Park, June. 2020                        |')
+    print('|    Scripted by Ethan Park, May. 2020                        |')
     print('+-------------------------------------------------------------+')
     print()
     username = input("Enter your admin ID ==> ")
@@ -201,19 +259,26 @@ if __name__ == '__main__':
     print()
 
     switchList = getDeviceList()
-    #createExcelFile()
+    createExcelFile()
 
     for elem in switchList:
         
         session = accessJumpBox(username, password)
-        session = accessSwitches(session, elem, username, password)
-        data = commandExecute(session, elem[1])
-        switch = parse.Parse(data, elem[1])
-        interfaceList = switch.getInterfaceList(switch.getOS())
-        dumpData = commandExecuteCDPNeighbor(session, interfaceList, switch.getOS())
-        cdpNeighborInfo = switch.getDeviceID(dumpData)
-        print(cdpNeighborInfo)
-        saveExcelFile(cdpNeighborInfo, elem, cellNumber)
+        result = os.system('ping -n 1 -w 2 ' + elem[2])
 
-        cellNumber += len(cdpNeighborInfo)
+        if result == 0:
+            session = accessSwitches(session, elem, username, password)
+            data = commandExecute(session, elem[1])
+            switch = parse.Parse(data, elem[1])
+            interfaceList = switch.getInterfaceList(switch.getOS())
+            dumpData = commandExecuteCDPNeighbor(session, interfaceList, switch.getOS())
+            baseDescription = switch.getBaseDescription(dumpData)
+            portChannelData = commandExecutePortChannel(session, elem, baseDescription)
+            saveExcelFile(portChannelData, elem, cellNumber)
+            cellNumber += len(portChannelData)
+        else:
+            error = [{'-': 'Needs to check'}]
+            saveExcelFile(error, elem, cellNumber)
+            cellNumber += 1
+
         session.close()
